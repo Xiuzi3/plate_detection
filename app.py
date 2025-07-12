@@ -147,9 +147,17 @@ def upload_file():
     return jsonify({'error': '不支持的文件格式'})
 
 @app.route('/static/<path:filename>')
+@app.route('/static/<path:filename>')
 def static_files(filename):
     """静态文件服务"""
-    return send_file(os.path.join('static', filename))
+    response = send_file(os.path.join('static', filename))
+    # 禁用缓存，确保每次都获取最新文件
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+
 
 if __name__ == '__main__':
     # 初始化模型
