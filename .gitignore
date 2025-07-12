@@ -3,6 +3,10 @@
 *
 # 但是不忽略目录
 !*/
+# 专门允许templates文件夹及其内容
+!templates/
+!templates/**
+
 # 忽略一些指定的目录名
 ut/
 runs/
@@ -17,6 +21,7 @@ gangao/
 extra/
 ccpd/
 *.pyc
+
 # 不忽略下面指定的文件类型
 !*.cpp
 !*.h
@@ -28,7 +33,6 @@ ccpd/
 !*.npy
 !*.jpg
 !*.pt
-!*.npy
 !*.pth
 !*.png
 !*.yaml
