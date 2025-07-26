@@ -1,10 +1,10 @@
 import gradio as gr
 import cv2
-import numpy as np
 import torch
 import copy
 from PIL import Image
 import os
+import uuid
 from detect_plate import load_model, detect_Recognition_plate, draw_result
 from plate_recognition.plate_rec import init_model
 
@@ -12,6 +12,11 @@ from plate_recognition.plate_rec import init_model
 detect_model = None
 plate_rec_model = None
 device = None
+
+# 创建临时目录用于存储临时图片文件
+TEMP_DIR = os.path.join(os.getcwd(), "temp_images")
+if not os.path.exists(TEMP_DIR):
+    os.makedirs(TEMP_DIR)
 
 def initialize_models():
     """初始化模型"""
@@ -40,20 +45,6 @@ def initialize_models():
 
     return True, "模型已加载"
 
-def pil_to_cv2(pil_image):
-    """将PIL图像转换为OpenCV格式"""
-    if pil_image is None:
-        return None
-
-    # 转换为numpy数组
-    opencv_image = np.array(pil_image)
-
-    # PIL图像是RGB格式，OpenCV使用BGR格式
-    if len(opencv_image.shape) == 3:
-        opencv_image = cv2.cvtColor(opencv_image, cv2.COLOR_RGB2BGR)
-
-    return opencv_image
-
 def cv2_to_pil(cv2_image):
     """将OpenCV图像转换为PIL格式"""
     if cv2_image is None:
@@ -67,7 +58,7 @@ def cv2_to_pil(cv2_image):
 
 def vehicle_recognition(input_image):
     """
-    车辆识别函数
+    车辆识别函数 - 使用本地文件处理方案
     """
     if input_image is None:
         return None, "请先上传图片"
@@ -77,14 +68,19 @@ def vehicle_recognition(input_image):
     if not success:
         return None, f"模型初始化失败: {message}"
 
+    temp_path = None
     try:
-        # 将PIL图像转换为OpenCV格式
-        cv2_image = pil_to_cv2(input_image)
+        # 将PIL图像保存到本地临时文件
+        temp_path = save_pil_to_local(input_image)
+        if temp_path is None:
+            return None, "保存临时图像文件失败"
 
+        # 使用OpenCV直接从文件加载图像（自动为BGR格式）
+        cv2_image = load_image_with_opencv(temp_path)
         if cv2_image is None:
-            return None, "图片格式错误"
+            return None, "加载图像文件失败"
 
-        # 复制原图
+        # 复制原图用于绘制结果
         img_copy = copy.deepcopy(cv2_image)
 
         # 进行车牌检测和识别
@@ -110,6 +106,9 @@ def vehicle_recognition(input_image):
 
     except Exception as e:
         return None, f"识别过程中出现错误: {str(e)}"
+    finally:
+        # 清理临时文件
+        cleanup_temp_file(temp_path)
 
 def generate_result_text(dict_list):
     """生成识别结果文本"""
@@ -128,16 +127,50 @@ def generate_result_text(dict_list):
 
         result_lines.append(f"车牌 {i}:")
         result_lines.append(f"  车牌号: {plate_no}")
-        result_lines.append(f"  车牌颜色: {plate_color}")
-        result_lines.append(f"  车牌类型: {'双层' if plate_type == 1 else '单层'}")
-        result_lines.append(f"  检测置信度: {detect_conf:.3f}")
+        result_lines.append(f" 车牌颜色: {plate_color}")
+        result_lines.append(f" 车牌类型: {'双层' if plate_type == 1 else '单层'}")
 
-        # 添加位置信息
-        rect = result.get('rect', [0, 0, 0, 0])
-        result_lines.append(f"  位置: ({rect[0]}, {rect[1]}) - ({rect[2]}, {rect[3]})")
-        result_lines.append("")
+
 
     return "\n".join(result_lines)
+
+def save_pil_to_local(pil_image):
+    """将PIL图像保存到本地临时文件，返回文件路径"""
+    if pil_image is None:
+        return None
+
+    # 生成唯一的临时文件名
+    temp_filename = f"temp_{uuid.uuid4().hex}.jpg"
+    temp_path = os.path.join(TEMP_DIR, temp_filename)
+
+    try:
+        # 保存PIL图像到本地文件
+        pil_image.save(temp_path, "JPEG", quality=95)
+        return temp_path
+    except Exception as e:
+        print(f"保存临时文件失败: {e}")
+        return None
+
+def load_image_with_opencv(image_path):
+    """使用OpenCV直接从本地文件加载图像（自动为BGR格式）"""
+    if not os.path.exists(image_path):
+        return None
+
+    try:
+        # OpenCV直接读取为BGR格式，无需转换
+        cv2_image = cv2.imread(image_path)
+        return cv2_image
+    except Exception as e:
+        print(f"加载图像失败: {e}")
+        return None
+
+def cleanup_temp_file(file_path):
+    """清理临时文件"""
+    try:
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+    except Exception as e:
+        print(f"清理临时文件失败: {e}")
 
 # 创建Gradio界面
 
