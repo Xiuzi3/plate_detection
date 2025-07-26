@@ -177,8 +177,10 @@ def cleanup_temp_file(file_path):
 with gr.Blocks(title="车辆识别系统", theme=gr.themes.Default()) as demo:
     gr.Markdown(
         """
-        # 车牌识别
-        根据上传的车辆图片，自动识别车牌信息并进行标注。
+       <div align="center">
+        <h1>车牌识别</h1>
+        <p>根据上传的车辆图片，自动识别车牌信息并进行标注。</p>
+        </div>
         """
     )
 
@@ -258,9 +260,5 @@ with gr.Blocks(title="车辆识别系统", theme=gr.themes.Default()) as demo:
 if __name__ == "__main__":
     # 创建并启动界面
     demo.launch(
-        server_name="127.0.0.1",
-        server_port=7860,
-        share=False,
-        debug=True,
-        show_error=True
+      share=True
     )
