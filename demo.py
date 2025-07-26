@@ -122,14 +122,16 @@ def generate_result_text(dict_list):
     for i, result in enumerate(dict_list, 1):
         plate_no = result.get('plate_no', '未识别')
         plate_color = result.get('plate_color', '未知')
-        detect_conf = result.get('detect_conf', 0)
         plate_type = result.get('plate_type', 0)
+
+        # 根据车牌颜色判断车辆类型
+        vehicle_type = "新能源车" if plate_color == "绿色" else "燃油车"
 
         result_lines.append(f"车牌 {i}:")
         result_lines.append(f"  车牌号: {plate_no}")
         result_lines.append(f" 车牌颜色: {plate_color}")
         result_lines.append(f" 车牌类型: {'双层' if plate_type == 1 else '单层'}")
-
+        result_lines.append(f" 车辆类型: {vehicle_type}")
 
 
     return "\n".join(result_lines)
