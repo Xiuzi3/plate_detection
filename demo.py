@@ -262,5 +262,5 @@ with gr.Blocks(title="车辆识别系统", theme=gr.themes.Default()) as demo:
 if __name__ == "__main__":
     # 创建并启动界面
     demo.launch(
-      share=True
+      share=False
     )
