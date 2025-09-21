@@ -33,3 +33,4 @@ ccpd/
 !*.png
 !*.yaml
 !*.md
+!*.txt
