@@ -24,10 +24,15 @@ def initialize_models():
 
     if detect_model is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print(f"Using device: {device}")
 
-        # 模型路径
-        detect_model_path = 'weights/plate_detect.pt'
-        rec_model_path = 'weights/plate_rec_color.pth'
+        # 使用绝对路径确保模型文件能够正确加载
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        detect_model_path = os.path.join(current_dir, 'weights', 'plate_detect.pt')
+        rec_model_path = os.path.join(current_dir, 'weights', 'plate_rec_color.pth')
+
+        print(f"检测模型路径: {detect_model_path}")
+        print(f"识别模型路径: {rec_model_path}")
 
         # 检查模型文件是否存在
         if not os.path.exists(detect_model_path):
@@ -35,12 +40,25 @@ def initialize_models():
         if not os.path.exists(rec_model_path):
             return False, f"识别模型文件不存在: {rec_model_path}"
 
+        # 检查文件是否可读
+        if not os.access(detect_model_path, os.R_OK):
+            return False, f"检测模型文件无法读取: {detect_model_path}"
+        if not os.access(rec_model_path, os.R_OK):
+            return False, f"识别模型文件无法读取: {rec_model_path}"
+
         try:
+            print("正在加载检测模型...")
             # 加载模型
             detect_model = load_model(detect_model_path, device)
+            print("检测模型加载成功")
+
+            print("正在加载识别模型...")
             plate_rec_model = init_model(device, rec_model_path, is_color=True)
+            print("识别模型加载成功")
+
             return True, "模型加载成功"
         except Exception as e:
+            print(f"模型加载异常: {str(e)}")
             return False, f"模型加载失败: {str(e)}"
 
     return True, "模型已加载"
@@ -63,22 +81,30 @@ def vehicle_recognition(input_image):
     if input_image is None:
         return None, "请先上传图片"
 
+    print("开始车辆识别...")
+
     # 初始化模型
     success, message = initialize_models()
     if not success:
+        print(f"模型初始化失败: {message}")
         return None, f"模型初始化失败: {message}"
 
     temp_path = None
     try:
+        print("保存临时图像文件...")
         # 将PIL图像保存到本地临时文件
         temp_path = save_pil_to_local(input_image)
         if temp_path is None:
             return None, "保存临时图像文件失败"
 
+        print(f"临时文件路径: {temp_path}")
+
         # 使用OpenCV直接从文件加载图像（自动为BGR格式）
         cv2_image = load_image_with_opencv(temp_path)
         if cv2_image is None:
             return None, "加载图像文件失败"
+
+        print("图像加载成功，开始检测...")
 
         # 复制原图用于绘制结果
         img_copy = copy.deepcopy(cv2_image)
@@ -93,6 +119,8 @@ def vehicle_recognition(input_image):
             is_color=True
         )
 
+        print(f"检测完成，发现 {len(dict_list)} 个车牌")
+
         # 在图像上绘制结果
         result_image = draw_result(img_copy, dict_list, is_color=True)
 
@@ -105,6 +133,9 @@ def vehicle_recognition(input_image):
         return output_image, result_text
 
     except Exception as e:
+        print(f"识别过程中出现异常: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None, f"识别过程中出现错误: {str(e)}"
     finally:
         # 清理临时文件
@@ -133,7 +164,6 @@ def generate_result_text(dict_list):
         result_lines.append(f" 车牌类型: {'双层' if plate_type == 1 else '单层'}")
         result_lines.append(f" 车辆类型: {vehicle_type}")
 
-
     return "\n".join(result_lines)
 
 def save_pil_to_local(pil_image):
@@ -146,9 +176,21 @@ def save_pil_to_local(pil_image):
     temp_path = os.path.join(TEMP_DIR, temp_filename)
 
     try:
+        # 确保图像是RGB格式
+        if pil_image.mode != 'RGB':
+            pil_image = pil_image.convert('RGB')
+
         # 保存PIL图像到本地文件
         pil_image.save(temp_path, "JPEG", quality=95)
-        return temp_path
+
+        # 验证文件是否成功保存
+        if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+            print(f"临时文件保存成功: {temp_path}")
+            return temp_path
+        else:
+            print("临时文件保存失败: 文件为空或不存在")
+            return None
+
     except Exception as e:
         print(f"保存临时文件失败: {e}")
         return None
@@ -156,12 +198,52 @@ def save_pil_to_local(pil_image):
 def load_image_with_opencv(image_path):
     """使用OpenCV直接从本地文件加载图像（自动为BGR格式）"""
     if not os.path.exists(image_path):
+        print(f"图像文件不存在: {image_path}")
         return None
 
     try:
-        # OpenCV直接读取为BGR格式，无需转换
-        cv2_image = cv2.imread(image_path)
-        return cv2_image
+        # 方法1：直接使用cv2.imread
+        cv2_image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+
+        if cv2_image is not None:
+            print(f"图像加载成功，尺寸: {cv2_image.shape}")
+            return cv2_image
+
+        print("cv2.imread失败，尝试使用cv_imread...")
+
+        # 方法2：使用cv_imread函数（适用于中文路径）
+        try:
+            from plate_recognition.plate_rec import cv_imread
+            cv2_image = cv_imread(image_path)
+            if cv2_image is not None:
+                print(f"cv_imread加载成功，尺寸: {cv2_image.shape}")
+                return cv2_image
+        except Exception as e:
+            print(f"cv_imread也失败了: {e}")
+
+        # 方法3：使用PIL然后转换为OpenCV格式
+        print("尝试使用PIL加载...")
+        try:
+            from PIL import Image
+            import numpy as np
+
+            pil_image = Image.open(image_path)
+            if pil_image.mode != 'RGB':
+                pil_image = pil_image.convert('RGB')
+
+            # 转换为numpy数组，然后转换为BGR格式（OpenCV格式）
+            rgb_array = np.array(pil_image)
+            bgr_array = cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
+
+            print(f"PIL转换成功，尺寸: {bgr_array.shape}")
+            return bgr_array
+
+        except Exception as e:
+            print(f"PIL加载也失败了: {e}")
+
+        print(f"所有图像加载方法都失败了: {image_path}")
+        return None
+
     except Exception as e:
         print(f"加载图像失败: {e}")
         return None
@@ -171,6 +253,7 @@ def cleanup_temp_file(file_path):
     try:
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
+            print(f"临时文件已清理: {file_path}")
     except Exception as e:
         print(f"清理临时文件失败: {e}")
 
