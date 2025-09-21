@@ -1,0 +1,15 @@
+gradio==4.44.0
+opencv-python==4.8.1.78
+torch==2.1.0
+torchvision==0.16.0
+pillow==10.0.1
+numpy==1.24.3
+matplotlib==3.7.2
+ultralytics==8.0.196
+easyocr==1.7.0
+seaborn==0.12.2
+fastapi==0.104.1
+pydantic==2.4.2
+uvicorn[standard]==0.24.0
+starlette==0.27.0
+
